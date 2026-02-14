@@ -147,22 +147,23 @@
     .main-btn:active { transform: scale(0.95); }
 
     /* --- 2. GLOBAL COUNTDOWN --- */
-    /* Moved outside loader-overlay so it appears over the letter first */
     #countdown {
       position: fixed;
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       font-size: 20vmin;
       font-weight: 900;
-      color: #c2185b; /* Darker pink for visibility on light background */
       font-family: 'Lato', sans-serif;
       z-index: 200; 
-      text-shadow: 0 0 2vmin rgba(255,255,255, 0.8);
       pointer-events: none;
       display: none; /* Hidden by default */
+      
+      /* Default: Pink Background Style (Dark Text) */
+      color: #c2185b;
+      text-shadow: 0 0 2vmin rgba(255,255,255, 0.8);
     }
     
-    /* When over the black background, switch to white */
+    /* Black Background Style (White Text with Glow) */
     #countdown.on-black {
       color: #fff;
       text-shadow: 0 0 5vmin rgba(233, 30, 99, 1);
@@ -293,7 +294,7 @@
   <!-- Main Button -->
   <button class="main-btn" id="open-btn">Open Letter</button>
 
-  <!-- Global Countdown (Moved outside so it works on letter and loader) -->
+  <!-- Global Countdown -->
   <div id="countdown"></div>
 
   <!-- 2. The 3D Heart Loader Overlay -->
@@ -344,11 +345,15 @@
       if (isSequenceStarted) return;
       isSequenceStarted = true;
 
+      // FIX FOR FREEZE: Initialize the heavy 3D scene IMMEDIATELY in the background.
+      // It builds the particles while the envelope opens, preventing lag later.
+      initThreeJS();
+
       envelope.classList.add('open');
       openBtn.style.opacity = '0'; 
       openBtn.style.pointerEvents = 'none';
 
-      // Start the countdown over the letter after 1 second
+      // Start Phase 1 Countdown over the letter after 1 second
       setTimeout(() => {
         startLetterCountdown();
       }, 1000); 
@@ -365,6 +370,8 @@
       openBtn.style.pointerEvents = 'all';
       isSequenceStarted = false;
       videoError.style.display = 'none'; 
+      
+      // Reset Countdown
       countdownEl.style.display = 'none';
       countdownEl.classList.remove('on-black');
 
@@ -380,12 +387,12 @@
       }
     });
 
-    // NEW FUNCTION: Handles the 3-2-1 countdown on the letter
+    // PHASE 1: 3-2-1 Countdown on the Letter (Pink Background)
     function startLetterCountdown() {
       let count = 3;
       countdownEl.innerText = count;
       countdownEl.style.display = 'block';
-      countdownEl.classList.remove('on-black'); // Ensure dark text for pink background
+      countdownEl.classList.remove('on-black'); // Dark text
       
       // Animate in
       gsap.fromTo(countdownEl, {scale: 0, opacity: 0}, {scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.7)"});
@@ -397,39 +404,49 @@
           gsap.fromTo(countdownEl, {scale: 1.5, opacity: 0}, {scale: 1, opacity: 1, duration: 0.4});
         } else {
           clearInterval(interval);
-          // Countdown finished, switch to Heart Loader
+          // Phase 1 Finished -> Start Phase 2 (Heart)
           startHeartLoader();
         }
       }, 1000);
     }
 
+    // PHASE 2: 5-4-3... Countdown on Heart (Black Background)
     function startHeartLoader() {
-      // Hide the countdown text now
-      countdownEl.style.display = 'none';
-      
-      // Fade in the black background
+      // 1. Fade in the black background (The 3D scene is already running in the background!)
       loaderOverlay.classList.add('active');
       
-      // Initialize the 3D scene
-      initThreeJS();
-      
-      // Force a resize to ensure canvas calculates size correctly
+      // Force a resize just in case
       setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
       }, 100);
 
-      // LONGER ANIMATION: Wait 10 seconds (10000ms) before showing the video
-      // The heart will animate during this time without numbers
-      setTimeout(() => {
-        showVideo();
-      }, 10000); 
+      // 2. Start the Countdown (Reduced to 5 seconds)
+      let count = 5;
+      countdownEl.innerText = count;
+      countdownEl.classList.add('on-black'); // Switch to white text
+      
+      // Pulse animation style for the heart phase
+      gsap.to(countdownEl, {scale: 1.1, duration: 0.5, yoyo: true, repeat: -1, ease: "sine.inOut"});
+
+      const interval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownEl.innerText = count;
+        } else {
+          clearInterval(interval);
+          countdownEl.style.display = 'none'; // Hide countdown
+          // Stop the pulse animation
+          gsap.killTweensOf(countdownEl);
+          showVideo();
+        }
+      }, 1000); 
     }
 
     function showVideo() {
       loaderOverlay.classList.remove('active');
       videoOverlay.classList.add('active');
       
-      // STOP the 3D Loop to save battery/performance once video is visible
+      // STOP the 3D Loop to save battery/performance
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
@@ -453,7 +470,7 @@
     }
 
     /* -----------------------------------------------------------
-       PART 2: THREE.JS PARTICLE HEART (Unchanged logic)
+       PART 2: THREE.JS PARTICLE HEART
        ----------------------------------------------------------- */
     let renderer, camera, scene, particles, geometry;
     
@@ -480,6 +497,7 @@
       renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
       renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
       renderer.setSize(window.innerWidth, window.innerHeight);
+      // Append to overlay, but overlay is hidden (opacity 0) until startHeartLoader runs
       document.getElementById('loader-overlay').appendChild(renderer.domElement);
 
       const controlsWebGL = new THREE.OrbitControls(camera, renderer.domElement);
