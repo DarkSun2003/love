@@ -33,7 +33,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 DEBUG = True
 
 ALLOWED_HOSTS = ['love-production-982c.up.railway.app', 'https://love-production-982c.up.railway.app']
-CSRF_TRUSTED_ORIGINS = ['love-production-982c.up.railway.app', 'https://love-production-982c.up.railway.app']
+CSRF_TRUSTED_ORIGINS = ['https://love-production-982c.up.railway.app']
 
 
 # Application definition
