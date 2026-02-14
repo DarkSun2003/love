@@ -32,8 +32,8 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-CSRF_TRUSTED_ORIGINS = []
+ALLOWED_HOSTS = ['love-production-982c.up.railway.app', 'https://love-production-982c.up.railway.app']
+CSRF_TRUSTED_ORIGINS = ['love-production-982c.up.railway.app', 'https://love-production-982c.up.railway.app']
 
 
 # Application definition
