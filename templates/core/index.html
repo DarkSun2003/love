@@ -1,0 +1,564 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Valentine's Surprise</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Three.js Libraries -->
+  <script src='https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js'></script>
+  <script src='https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/controls/OrbitControls.js'></script>
+  <script src='https://unpkg.co/gsap@3/dist/gsap.min.js'></script>
+
+  <style>
+    :root {
+      --envelope-color: #e91e63;
+      --envelope-dark: #c2185b;
+      --envelope-light: #f48fb1;
+      --paper-color: #fff;
+      --bg-color: #fce4ec;
+      --vmin: 1vmin; 
+    }
+
+    body {
+      background-color: var(--bg-color);
+      background-image: radial-gradient(#f8bbd0 1px, transparent 1px);
+      background-size: 20px 20px;
+      height: 100vh;
+      width: 100vw;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Lato', sans-serif;
+      overflow: hidden;
+      touch-action: manipulation; 
+    }
+
+    /* --- 1. ENVELOPE STYLES --- */
+    .scene {
+      position: relative;
+      width: 60vmin; 
+      height: 60vmin;
+      perspective: 1000px;
+      margin-bottom: 4vh;
+      z-index: 10;
+    }
+
+    svg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      overflow: visible;
+      filter: drop-shadow(0 2vmin 3vmin rgba(0,0,0,0.2));
+    }
+
+    .envelope-part {
+      transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1); 
+      transform-style: preserve-3d;
+    }
+
+    .pocket { z-index: 2; fill: var(--envelope-color); }
+    .pocket-inside { fill: var(--envelope-dark); }
+
+    .flap-wrapper {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 4;
+      transform-origin: 50% 48%; 
+      transform-style: preserve-3d;
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); 
+    }
+
+    .flap-front { fill: var(--envelope-color); backface-visibility: hidden; }
+    .flap-back { fill: var(--envelope-light); transform: rotateX(180deg); backface-visibility: hidden; }
+
+    .letter-container {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 45%; height: 55%;
+      background: var(--paper-color);
+      transform: translate(-50%, -40%) translateY(0);
+      border-radius: 1vmin;
+      box-shadow: 0 0.5vmin 1vmin rgba(0,0,0,0.1);
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2vmin;
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.2s;
+    }
+
+    .letter-content h3 {
+      font-family: 'Great Vibes', cursive;
+      color: var(--envelope-color);
+      font-size: clamp(16px, 5vmin, 30px); 
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    .seal {
+      position: absolute;
+      top: 33%; left: 50%;
+      transform: translateX(-50%);
+      width: 13%; height: 13%;
+      background: #d81b60;
+      border-radius: 50%;
+      border: 0.5vmin dashed rgba(255,255,255,0.4);
+      box-shadow: inset 0 0 2vmin rgba(0,0,0,0.3);
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.3s;
+    }
+    .seal::after { content: '♥'; color: white; font-size: 2vmin; }
+
+    .scene.open .flap-wrapper { transform: rotateX(180deg); }
+    .scene.open .letter-container { transform: translate(-50%, -60%) translateY(-15vmin); z-index: 3; }
+    .scene.open .seal { opacity: 0; pointer-events: none; }
+
+    .scene:not(.open) { animation: float 3s ease-in-out infinite; }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2vmin); } }
+
+    .main-btn {
+      background-color: var(--envelope-color);
+      color: white;
+      border: none;
+      padding: 3vmin 6vmin;
+      font-size: clamp(16px, 4vmin, 24px);
+      border-radius: 50px;
+      cursor: pointer;
+      font-weight: bold;
+      box-shadow: 0 1vmin 3vmin rgba(233, 30, 99, 0.3);
+      transition: transform 0.2s, background 0.2s;
+      z-index: 10;
+    }
+    .main-btn:hover { transform: scale(1.05); background-color: var(--envelope-dark); }
+    .main-btn:active { transform: scale(0.95); }
+
+    /* --- 2. GLOBAL COUNTDOWN --- */
+    /* Moved outside loader-overlay so it appears over the letter first */
+    #countdown {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 20vmin;
+      font-weight: 900;
+      color: #c2185b; /* Darker pink for visibility on light background */
+      font-family: 'Lato', sans-serif;
+      z-index: 200; 
+      text-shadow: 0 0 2vmin rgba(255,255,255, 0.8);
+      pointer-events: none;
+      display: none; /* Hidden by default */
+    }
+    
+    /* When over the black background, switch to white */
+    #countdown.on-black {
+      color: #fff;
+      text-shadow: 0 0 5vmin rgba(233, 30, 99, 1);
+    }
+
+    /* --- 3. LOADER OVERLAY --- */
+    #loader-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: #000;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+
+    #loader-overlay.active { opacity: 1; pointer-events: all; }
+
+    .loader-text {
+      position: absolute;
+      bottom: 10vh;
+      color: white;
+      font-family: 'Lato', sans-serif;
+      font-size: clamp(14px, 4vmin, 20px);
+      letter-spacing: 2px;
+      z-index: 110;
+      background: rgba(0,0,0,0.5);
+      padding: 1vmin 3vmin;
+      border-radius: 30px;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    /* --- 4. VIDEO OVERLAY --- */
+    #video-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: #000; 
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+
+    #video-overlay.active { opacity: 1; pointer-events: all; }
+
+    .video-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+      position: relative;
+    }
+
+    video {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      z-index: 1;
+    }
+
+    .replay-btn {
+      position: absolute;
+      bottom: 5vh;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 2px solid white;
+      padding: 2vmin 5vmin;
+      border-radius: 30px;
+      font-family: 'Lato', sans-serif;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+      z-index: 210;
+      font-size: clamp(14px, 3vmin, 18px);
+    }
+    .replay-btn:hover { background: white; color: black; }
+
+    #svg-source { display: none; }
+    
+    .video-error {
+      color: white;
+      text-align: center;
+      padding: 20px;
+      display: none;
+      z-index: 2;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. The Envelope Scene -->
+  <div class="scene" id="envelope">
+    <div class="letter-container">
+      <div class="letter-content">
+        <h3>For You<br>♥</h3>
+      </div>
+    </div>
+
+    <svg viewBox="0 0 300 300">
+      <path class="envelope-part pocket-inside" d="M50,140 C50,220 150,280 150,280 C150,280 250,220 250,140 L250,280 L50,280 Z" />
+      <path class="envelope-part pocket" d="M50,140 C50,220 150,280 150,280 C150,280 250,220 250,140 Z" />
+    </svg>
+
+    <div class="flap-wrapper">
+      <svg viewBox="0 0 300 300" style="overflow:visible;">
+        <path class="envelope-part flap-front" d="M50,140 C50,40 150,40 150,40 C150,40 250,40 250,140 Z" />
+        <path class="envelope-part flap-back" d="M50,140 C50,40 150,40 150,40 C150,40 250,40 250,140 Z" />
+      </svg>
+    </div>
+    <div class="seal"></div>
+  </div>
+
+  <!-- Main Button -->
+  <button class="main-btn" id="open-btn">Open Letter</button>
+
+  <!-- Global Countdown (Moved outside so it works on letter and loader) -->
+  <div id="countdown"></div>
+
+  <!-- 2. The 3D Heart Loader Overlay -->
+  <div id="loader-overlay">
+    <svg id="svg-source" viewBox="0 0 600 552">
+      <path d="M300,107.77C284.68,55.67,239.76,0,162.31,0C64.83,0,0,82.08,0,171.71c0,.48,0,.95,0,1.43-.52,19.5,0,217.94,299.87,379.69v0l0,0,.05,0,0,0,0,0v0C600,391.08,600.48,192.64,600,173.14c0-.48,0-.95,0-1.43C600,82.08,535.17,0,437.69,0C360.24,0,315.32,55.67,300,107.77" fill="#ee5282"/>
+    </svg>
+    <div class="loader-text">Loading Surprise...</div>
+  </div>
+
+  <!-- 3. The Final Video Overlay -->
+  <div id="video-overlay">
+    <div class="video-container">
+      {% if video_url %}
+        <video id="final-video" playsinline controls preload="auto">
+          <source src="{{ video_url }}" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <div id="video-error" class="video-error">
+          <h3>Video could not be loaded.</h3>
+          <p>Please ensure the file is H.264 MP4 format.</p>
+        </div>
+      {% else %}
+        <div style="color:white; padding: 20px;">No video uploaded in Admin yet.</div>
+      {% endif %}
+    </div>
+    <button class="replay-btn" id="replay-btn">Replay Surprise</button>
+  </div>
+
+  <script>
+    /* -----------------------------------------------------------
+       PART 1: ENVELOPE & COUNTDOWN LOGIC
+       ----------------------------------------------------------- */
+    const envelope = document.getElementById('envelope');
+    const openBtn = document.getElementById('open-btn');
+    const loaderOverlay = document.getElementById('loader-overlay');
+    const videoOverlay = document.getElementById('video-overlay');
+    const video = document.getElementById('final-video');
+    const videoError = document.getElementById('video-error');
+    const countdownEl = document.getElementById('countdown');
+    const replayBtn = document.getElementById('replay-btn');
+
+    let isSequenceStarted = false;
+    let threeInitialized = false;
+    let animationFrameId = null;
+
+    openBtn.addEventListener('click', () => {
+      if (isSequenceStarted) return;
+      isSequenceStarted = true;
+
+      envelope.classList.add('open');
+      openBtn.style.opacity = '0'; 
+      openBtn.style.pointerEvents = 'none';
+
+      // Start the countdown over the letter after 1 second
+      setTimeout(() => {
+        startLetterCountdown();
+      }, 1000); 
+    });
+
+    replayBtn.addEventListener('click', () => {
+      // 1. Reset UI
+      videoOverlay.classList.remove('active');
+      loaderOverlay.classList.remove('active');
+      video.pause();
+      video.currentTime = 0;
+      envelope.classList.remove('open');
+      openBtn.style.opacity = '1';
+      openBtn.style.pointerEvents = 'all';
+      isSequenceStarted = false;
+      videoError.style.display = 'none'; 
+      countdownEl.style.display = 'none';
+      countdownEl.classList.remove('on-black');
+
+      // 2. Reset 3D State for next time
+      threeInitialized = false;
+      const oldCanvas = document.querySelector('canvas');
+      if (oldCanvas) oldCanvas.remove();
+
+      // 3. Stop any running animation loops
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+    });
+
+    // NEW FUNCTION: Handles the 3-2-1 countdown on the letter
+    function startLetterCountdown() {
+      let count = 3;
+      countdownEl.innerText = count;
+      countdownEl.style.display = 'block';
+      countdownEl.classList.remove('on-black'); // Ensure dark text for pink background
+      
+      // Animate in
+      gsap.fromTo(countdownEl, {scale: 0, opacity: 0}, {scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.7)"});
+
+      const interval = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownEl.innerText = count;
+          gsap.fromTo(countdownEl, {scale: 1.5, opacity: 0}, {scale: 1, opacity: 1, duration: 0.4});
+        } else {
+          clearInterval(interval);
+          // Countdown finished, switch to Heart Loader
+          startHeartLoader();
+        }
+      }, 1000);
+    }
+
+    function startHeartLoader() {
+      // Hide the countdown text now
+      countdownEl.style.display = 'none';
+      
+      // Fade in the black background
+      loaderOverlay.classList.add('active');
+      
+      // Initialize the 3D scene
+      initThreeJS();
+      
+      // Force a resize to ensure canvas calculates size correctly
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+
+      // LONGER ANIMATION: Wait 10 seconds (10000ms) before showing the video
+      // The heart will animate during this time without numbers
+      setTimeout(() => {
+        showVideo();
+      }, 10000); 
+    }
+
+    function showVideo() {
+      loaderOverlay.classList.remove('active');
+      videoOverlay.classList.add('active');
+      
+      // STOP the 3D Loop to save battery/performance once video is visible
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      
+      if(video) {
+        var playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error("Autoplay prevented or error:", error);
+            videoError.style.display = 'block';
+            videoError.querySelector('p').innerText = "Error: " + error.message;
+          });
+        }
+        
+        video.addEventListener('error', (e) => {
+            console.error("Video Error Code: " + video.error.code);
+            videoError.style.display = 'block';
+        }, false);
+      }
+    }
+
+    /* -----------------------------------------------------------
+       PART 2: THREE.JS PARTICLE HEART (Unchanged logic)
+       ----------------------------------------------------------- */
+    let renderer, camera, scene, particles, geometry;
+    
+    function getScale() {
+      const padding = 1.5;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const scaleX = width / 600 / padding;
+      const scaleY = height / 552 / padding;
+      return Math.min(scaleX, scaleY);
+    }
+
+    function initThreeJS() {
+      if (threeInitialized) return;
+      threeInitialized = true;
+
+      console.clear();
+
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+      camera.position.z = 500;
+
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.getElementById('loader-overlay').appendChild(renderer.domElement);
+
+      const controlsWebGL = new THREE.OrbitControls(camera, renderer.domElement);
+      controlsWebGL.enableZoom = false;
+      controlsWebGL.enablePan = false;
+
+      const tl = gsap.timeline({ repeat: -1, yoyo: true });
+      
+      const path = document.querySelector("#svg-source path");
+      const length = path.getTotalLength();
+      const vertices = [];
+
+      for (let i = 0; i < length; i += 0.15) {
+        const point = path.getPointAtLength(i);
+        const vector = new THREE.Vector3(point.x, -point.y, 0);
+        vector.x += (Math.random() - 0.5) * 30;
+        vector.y += (Math.random() - 0.5) * 30;
+        vector.z += (Math.random() - 0.5) * 70;
+        vertices.push(vector);
+        
+        tl.from(vector, {
+            x: 600 / 2,
+            y: -552 / 2,
+            z: 0,
+            ease: "power2.inOut",
+            duration: "random(2, 5)"
+          },
+          i * 0.002
+        );
+      }
+
+      geometry = new THREE.BufferGeometry().setFromPoints(vertices);
+      const material = new THREE.PointsMaterial({ 
+        color: 0xee5282, 
+        blending: THREE.AdditiveBlending, 
+        size: 3,
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      particles = new THREE.Points(geometry, material);
+      particles.position.x -= 600 / 2;
+      particles.position.y += 552 / 2;
+      
+      const scale = getScale();
+      particles.scale.set(scale, scale, scale);
+      
+      scene.add(particles);
+
+      gsap.fromTo(scene.rotation, { y: -0.2 }, {
+        y: 0.2,
+        repeat: -1,
+        yoyo: true,
+        ease: 'power2.inOut',
+        duration: 3
+      });
+
+      function render() {
+        animationFrameId = requestAnimationFrame(render);
+        if(geometry) geometry.setFromPoints(vertices);
+        controlsWebGL.update();
+        renderer.render(scene, camera);
+      }
+
+      function onWindowResize() {
+        if(camera && renderer) {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          if(particles) {
+            const newScale = getScale();
+            particles.scale.set(newScale, newScale, newScale);
+          }
+        }
+      }
+      window.addEventListener("resize", onWindowResize, false);
+
+      render();
+    }
+  </script>
+</body>
+</html>
